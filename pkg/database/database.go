@@ -4,6 +4,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 
 	"gonews/pkg/models"
 
@@ -101,4 +102,50 @@ func (d *DB) GetPosts(n int) ([]models.Post, error) {
 func (d *DB) InitSchema(schemaSQL string) error {
 	_, err := d.db.Exec(schemaSQL)
 	return err
+}
+
+// GetPostsCount возвращает количество публикаций с учетом фильтра по заголовку
+func (d *DB) GetPostsCount(search string) (int, error) {
+	query := `SELECT COUNT(*) FROM posts`
+	var args []interface{}
+	if search != "" {
+		query += ` WHERE title ILIKE $1`
+		args = append(args, "%"+search+"%")
+	}
+	var count int
+	err := d.db.QueryRow(query, args...).Scan(&count)
+	return count, err
+}
+
+// GetPostsPaginated получает публикации с пагинацией и опциональным поиском по заголовку
+func (d *DB) GetPostsPaginated(search string, limit, offset int) ([]models.Post, error) {
+	query := `SELECT id, title, content, pub_time, link, source FROM posts`
+	var args []interface{}
+	argIndex := 1
+
+	if search != "" {
+		query += ` WHERE title ILIKE $` + strconv.Itoa(argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	query += ` ORDER BY pub_time DESC LIMIT $` + strconv.Itoa(argIndex) + ` OFFSET $` + strconv.Itoa(argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := d.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []models.Post
+	for rows.Next() {
+		var p models.Post
+		err := rows.Scan(&p.ID, &p.Title, &p.Content, &p.PubTime, &p.Link, &p.Source)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, rows.Err()
 }
