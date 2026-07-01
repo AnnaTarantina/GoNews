@@ -149,3 +149,21 @@ func (d *DB) GetPostsPaginated(search string, limit, offset int) ([]models.Post,
 	}
 	return posts, rows.Err()
 }
+
+// GetPostByID получает одну новость по её ID
+func (d *DB) GetPostByID(id int) (models.Post, error) {
+	query := `
+		SELECT id, title, content, pub_time, link, source
+		FROM posts
+		WHERE id = $1`
+
+	var post models.Post
+	err := d.db.QueryRow(query, id).Scan(
+		&post.ID, &post.Title, &post.Content,
+		&post.PubTime, &post.Link, &post.Source,
+	)
+	if err != nil {
+		return models.Post{}, err
+	}
+	return post, nil
+}
